@@ -1,4 +1,4 @@
-# File: convert_webp_to_jpeg_gui.py
+# File: convert_webp_image_gui.py
 
 import os
 import logging
@@ -13,13 +13,14 @@ from datetime import datetime
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def convert_webp_to_jpeg(webp_path, output_dir, overwrite=False):
+def convert_webp_image(webp_path, output_dir, output_format, overwrite=False):
     """
-    Convert a .webp image to .jpeg format and save it to the specified output directory.
+    Convert a .webp image to specified format and save it to the specified output directory.
 
     Args:
         webp_path (str): Path to the .webp file to be converted.
-        output_dir (str): Directory where the converted .jpeg file will be saved.
+        output_dir (str): Directory where the converted file will be saved.
+        output_format (str): The desired output format ('jpeg', 'png', 'gif', 'tiff', 'pdf').
         overwrite (bool): Whether to overwrite existing files.
 
     Returns:
@@ -41,26 +42,35 @@ def convert_webp_to_jpeg(webp_path, output_dir, overwrite=False):
         logging.info(f"Original image size: {original_size}")
 
         img = img.convert("RGB")
-        jpeg_filename = os.path.splitext(os.path.basename(webp_path))[0] + '.jpeg'
-        jpeg_path = os.path.join(output_dir, jpeg_filename)
+        output_filename = os.path.splitext(os.path.basename(webp_path))[0] + f'.{output_format}'
+        output_path = os.path.join(output_dir, output_filename)
 
-        if os.path.exists(jpeg_path):
+        if os.path.exists(output_path):
             if overwrite:
-                logging.info(f"Overwriting existing file: {jpeg_path}")
+                logging.info(f"Overwriting existing file: {output_path}")
             else:
-                logging.info(f"File already exists and overwrite is disabled: {jpeg_path}")
+                logging.info(f"File already exists and overwrite is disabled: {output_path}")
                 return True
 
-        img.save(jpeg_path, 'JPEG')
-        logging.info(f"Saved JPEG image to: {jpeg_path}")
+        if output_format == 'pdf':
+            img.save(output_path, 'PDF', resolution=100.0)
+        else:
+            img.save(output_path, output_format.upper())
 
-        converted_img = Image.open(jpeg_path)
+        # Verify the created file to avoid false positives
+        if not os.path.isfile(output_path):
+            logging.error(f"Failed to create {output_path}")
+            return False
+
+        logging.info(f"Saved {output_format.upper()} image to: {output_path}")
+
+        converted_img = Image.open(output_path)
         converted_size = converted_img.size
 
         if original_size == converted_size:
-            logging.info(f"Size verified for {jpeg_path}: {converted_size}")
+            logging.info(f"Size verified for {output_path}: {converted_size}")
         else:
-            logging.warning(f"Size mismatch for {jpeg_path}: original {original_size}, converted {converted_size}")
+            logging.warning(f"Size mismatch for {output_path}: original {original_size}, converted {converted_size}")
 
         return True
     except FileNotFoundError:
@@ -76,14 +86,15 @@ def convert_webp_to_jpeg(webp_path, output_dir, overwrite=False):
     return False
 
 
-class WebpToJpegConverterApp:
+class WebpImageConverterApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("WebP to JPEG Converter")
+        self.root.title("WebP Image Converter")
 
         self.source_files = []
         self.output_dir = ''
         self.overwrite = tk.BooleanVar()
+        self.output_format = tk.StringVar(value="jpeg")
         self.cancel_flag = threading.Event()
 
         self.create_widgets()
@@ -103,29 +114,37 @@ class WebpToJpegConverterApp:
         self.output_button = tk.Button(self.root, text="Select Directory", command=self.select_output_directory)
         self.output_button.grid(row=1, column=1, padx=10, pady=5)
 
+        # Output format selection
+        self.format_label = tk.Label(self.root, text="Output Format:")
+        self.format_label.grid(row=2, column=0, padx=10, pady=5)
+
+        self.format_combobox = ttk.Combobox(self.root, textvariable=self.output_format, state='readonly')
+        self.format_combobox['values'] = ('jpeg', 'png', 'gif', 'tiff', 'pdf')
+        self.format_combobox.grid(row=2, column=1, padx=10, pady=5)
+
         # Overwrite option
         self.overwrite_check = tk.Checkbutton(self.root, text="Overwrite Existing Files", variable=self.overwrite)
-        self.overwrite_check.grid(row=2, column=0, columnspan=2, padx=10, pady=5)
+        self.overwrite_check.grid(row=3, column=0, columnspan=2, padx=10, pady=5)
 
         # Convert button
         self.convert_button = tk.Button(self.root, text="Convert", command=self.start_conversion)
-        self.convert_button.grid(row=3, column=0, padx=10, pady=5)
+        self.convert_button.grid(row=4, column=0, padx=10, pady=5)
 
         # Cancel button
         self.cancel_button = tk.Button(self.root, text="Cancel", command=self.cancel_conversion)
-        self.cancel_button.grid(row=3, column=1, padx=10, pady=5)
+        self.cancel_button.grid(row=4, column=1, padx=10, pady=5)
 
         # Clear log button
         self.clear_log_button = tk.Button(self.root, text="Clear Log", command=self.clear_log)
-        self.clear_log_button.grid(row=4, column=0, columnspan=2, padx=10, pady=5)
+        self.clear_log_button.grid(row=5, column=0, columnspan=2, padx=10, pady=5)
 
         # Progress bar
         self.progress = ttk.Progressbar(self.root, orient="horizontal", length=300, mode="determinate")
-        self.progress.grid(row=5, column=0, columnspan=2, padx=10, pady=5)
+        self.progress.grid(row=6, column=0, columnspan=2, padx=10, pady=5)
 
         # Log area
         self.log_area = scrolledtext.ScrolledText(self.root, width=50, height=10, state='disabled')
-        self.log_area.grid(row=6, column=0, columnspan=2, padx=10, pady=5)
+        self.log_area.grid(row=7, column=0, columnspan=2, padx=10, pady=5)
 
     def select_source_files(self):
         try:
@@ -177,7 +196,7 @@ class WebpToJpegConverterApp:
                 messagebox.showinfo("Cancelled", "Conversion process was cancelled.")
                 break
             try:
-                if convert_webp_to_jpeg(webp_file, self.output_dir, self.overwrite.get()):
+                if convert_webp_image(webp_file, self.output_dir, self.output_format.get(), self.overwrite.get()):
                     success_count += 1
                     self.log(f"Successfully converted: {webp_file}")
                 else:
@@ -229,5 +248,5 @@ class WebpToJpegConverterApp:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = WebpToJpegConverterApp(root)
+    app = WebpImageConverterApp(root)
     root.mainloop()
